@@ -16,11 +16,11 @@ class NeedleDropPlaylistMaker():
 
     self._authorize()
 
-  def _authorize(self):
+  def _authorize(self) -> None:
     self._setup_youtube_client()
     self._setup_spotify_client()
 
-  def _setup_youtube_client(self):
+  def _setup_youtube_client(self) -> None:
 
     scopes = ["https://www.googleapis.com/auth/youtube.readonly"]
     os.environ["OAUTHLIB_INSECURE_TRANSPORT"] = "1"
@@ -44,7 +44,7 @@ class NeedleDropPlaylistMaker():
       credentials=credentials,
     )
 
-  def _setup_spotify_client(self):
+  def _setup_spotify_client(self) -> None:
 
     oauth_handler = spotipy.Spotify(
       auth_manager = SpotifyOAuth(
@@ -57,7 +57,28 @@ class NeedleDropPlaylistMaker():
 
     self.spotify_access_token = oauth_handler.auth_manager.get_cached_token().get("access_token")
 
-  def generate_reviewed_playlist(self, scores=None, days=100, genres=None):
+  def generate_reviewed_playlist(self, scores=None, days=7, genres=None) -> str:
+
+    """
+    Generates a Spotify playlist of albums reviewed by TheNeedleDrop. This is the main function that is called
+    to start the process.
+
+    Parameters
+    ----------
+
+    scores: List[string]
+      Filters albums with OR logic. Taken in as a string rather than int to support "CLASSIC", "NOT GOOD", NOT BAD", etc.
+    days: int
+      Number of days to include since album was reviewed
+    genres: List[string]
+      Filters albums with OR logic based on the genres given.
+
+    Returns
+    -------
+    playlist_url: string
+      Returns a Spotify url link to the generated playlist. If the playlist is not created, it returns None
+
+    """
 
     if isinstance(days, list):
       days = days[0]
@@ -142,7 +163,18 @@ class NeedleDropPlaylistMaker():
 
     return playlist_create_json["external_urls"]["spotify"]
 
-  def get_needledrop_uploads(self):
+  def get_needledrop_uploads(self) -> list:
+
+    """
+    Makes a Youtube API requests to fetch in all the uploaded videos in the channel TheNeedleDrop
+
+    Returns
+    -------
+    
+    uploaded_vids: List[dict]
+      Returns a list of video information in .json format
+    
+    """
 
     # Fetch TheNeedleDrop information
     channel_info_req = self.youtube_client.channels().list(
@@ -159,9 +191,6 @@ class NeedleDropPlaylistMaker():
       maxResults=50,
     )
     uploads_res = uploads_req.execute()
-
-    # Filter uploads to keep videos that is in between the two specified dates
-    # Need to handle information pagination
     uploaded_vids = []
     page_token = None
     while True:
@@ -175,10 +204,6 @@ class NeedleDropPlaylistMaker():
       for i in uploads_res["items"]:
         i["extracted_info"] = self._extract_video_description(i)
 
-      # Terminate early if no videos in the current page are between the two dates given
-      # Assumption: videos in playlist are given in descending order based on videoPublishedAt Datetime 
-      if len(uploads_res["items"]) == 0:
-        break
         
       uploaded_vids.extend(uploads_res["items"])
 
@@ -189,7 +214,21 @@ class NeedleDropPlaylistMaker():
 
     return uploaded_vids
 
-  def add_tracks_to_playlist(self, tracklist_uris, playlist_id):
+  def add_tracks_to_playlist(self, tracklist_uris, playlist_id) -> None:
+
+    """
+    Adds all tracklists found on Spotify onto a newly created playlist.
+
+    Parameters
+    ----------
+
+    tracklist_uris: List[dict]
+      List of dictionaries of information about each track on the albums to add to the playlist
+      
+    playlist_id: int
+      Id of newly created Spotify playlist
+
+    """
 
     endpoint = f"https://api.spotify.com/v1/playlists/{playlist_id}/tracks"
     current_idx = 0
@@ -213,7 +252,21 @@ class NeedleDropPlaylistMaker():
     except requests.exceptions.RequestException as e:
       raise SystemExit(e)
 
-  def get_album_search(self, query):
+  def get_album_search(self, query) -> dict:
+
+    """
+    Makes a Spotify web API request to find the wanted album using its search functionality
+
+    Parameters
+    ----------
+    query: string
+      Contains the album name
+        
+    Returns
+    -------
+    dict
+      .json response from the API on information about the album
+    """
 
     if query is None:
       print("Empty string to be put into the query")
@@ -244,7 +297,21 @@ class NeedleDropPlaylistMaker():
 
     return search_req.json()
 
-  def get_album_tracks(self, album_id):
+  def get_album_tracks(self, album_id) -> list:
+
+    """
+    Makes a Spotify web API request to parses out the tracklist of the album
+
+    Parameters
+    ----------
+    album_id: int
+      Id of Spotify album
+        
+    Returns
+    -------
+    tracklist_uris: list[str]
+      List or tracklist uris of the given album
+    """
 
     endpoint = f"https://api.spotify.com/v1/albums/{album_id}/tracks"
     payload = {
@@ -272,7 +339,24 @@ class NeedleDropPlaylistMaker():
     
     return tracklist_uris
 
-  def find_existing_playlist(self, playlist_title, description):
+  def find_existing_playlist(self, playlist_title, description) -> bool:
+
+    """
+    Checks if the user already has an existing playlist with the same title and description information.
+
+    Parameters
+    ----------
+    playlist_title: string
+      Name of playlist to look for
+
+    description: string
+      Description of the playlist to look for
+        
+    Returns
+    -------
+    bool
+      True if playlist is found. False if playlist doesn't exist.
+    """
 
     find_playlist_endpoint = f"https://api.spotify.com/v1/me/playlists"
     try:
@@ -297,7 +381,21 @@ class NeedleDropPlaylistMaker():
     return False
 
   @staticmethod
-  def _parse_fantano_score(playlist_item):
+  def _parse_fantano_score(playlist_item) -> str:
+
+    """
+    Extracts the score given by TheNeedleDrop based on the video description
+
+    Parameters
+    ----------
+    playlist_item: dict
+      Youtube API PlaylistItem object 
+        
+    Returns
+    -------
+    score: str
+      If included in the video description, returns the score of the album
+    """
     
     score_pattern = "[a-zA-Z0-9 ]+/10"
 
@@ -308,7 +406,26 @@ class NeedleDropPlaylistMaker():
     return None
 
   @staticmethod
-  def _extract_video_description(video_obj):
+  def _extract_video_description(video_obj) -> dict:
+
+    """
+    Extracts album name, artists, and genre of the album reviewed
+
+    Parameters
+    ----------
+    playlist_item: dict
+      Youtube API PlaylistItem object 
+        
+    Returns
+    -------
+    album_info: dict
+      Dictionary containing these information
+        {
+          "artist": str,
+          "album": str,
+          "genre": list[str]
+        }
+    """
 
     regex_pattern = re.compile(r"^(.+)-(.+)\/(.+)\/(.+)[\/]?" , re.MULTILINE)
     url_pattern = re.compile(r"http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+", re.MULTILINE)
@@ -317,19 +434,36 @@ class NeedleDropPlaylistMaker():
     removed_urls = list(map(lambda x: re.sub(url_pattern, "", x, re.MULTILINE), split_description))
     info = list(filter(lambda x: re.search(regex_pattern, x), removed_urls))
 
-    result = {}
+    album_info = {}
     if info:
       info_split = info[0].split("/")
-      result["artist"] = info_split[0].split("-")[0].strip()
-      result["album"] = info_split[0].split("-")[-1].strip()
-      result["genre"] = list(map(str.strip, info_split[-1].split(",")))
+      album_info["artist"] = info_split[0].split("-")[0].strip()
+      album_info["album"] = info_split[0].split("-")[-1].strip()
+      album_info["genre"] = list(map(str.strip, info_split[-1].split(",")))
     # else:
     #   print("Video description doesn't contain album info")
 
-    return result
+    return album_info
 
   @staticmethod
-  def _is_valid_genre(genre_list, wanted_genre):
+  def _is_valid_genre(genre_list, wanted_genre) -> bool:
+
+    """
+    Checks if the user already has an existing playlist with the same title and description information.
+
+    Parameters
+    ----------
+    genre_list: list[str]
+      Genres that the album is in, according to TheNeedleDrop's video description
+
+    description: list[str]
+      List of genres user wants to contain into the playlist
+        
+    Returns
+    -------
+    bool
+      True if the album is within the genres user wants. False if otherwise.
+    """
 
     if not wanted_genre:
       return True
