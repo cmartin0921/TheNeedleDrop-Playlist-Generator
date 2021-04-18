@@ -3,13 +3,10 @@ import os, re, argparse
 import datetime
 import json
 import requests
-from requests.models import stream_decode_response_unicode
 import spotipy
 from spotipy.oauth2 import SpotifyOAuth
 from google_auth_oauthlib.flow import InstalledAppFlow
-from google.auth.transport.requests import Request
 from googleapiclient.discovery import build
-import googleapiclient.errors
 
 class NeedleDropPlaylistMaker():
 
